@@ -2,6 +2,8 @@ Debug = {}
 
 Debug._index = Debug
 
+local PrintedCatch = nil            --记录已经打印过的表命 防止递归遍历
+
 function Debug.dumptree(obj,ObjName, width)
     -- 递归打印函数
     local dump_obj;
@@ -40,17 +42,19 @@ function Debug.dumptree(obj,ObjName, width)
 
     local function dump_key(key)
         if type(key) == "number" then
-            return key .. "] "
+            return key .. ":"
         elseif type(key) == "string" then
-            return tostring(key).. ": "
+            return "\"".. key.. "\": "
+        elseif type(key) == "userdata" then
+            return "userdata"
         end
 
-        return "nil"
+        return "["..type(key).."]"..key..":"
     end
 
-    local function dump_val(val,parentObjName, layer)
+    local function dump_val(val,parentObjName,layer)
         if type(val) == "table" then
-            return dump_obj(val,parentObjName, layer)
+            return dump_obj(val,parentObjName,layer)
         elseif type(val) == "string" then
             return make_quote(val)
         else
@@ -60,15 +64,21 @@ function Debug.dumptree(obj,ObjName, width)
 
     local function count_elements(obj)
         local count = 0
-        for k, v in pairs(obj) do
+        for _, _ in pairs(obj) do
             count = count + 1
         end
         return count
     end
 
-    dump_obj = function(obj,parentObjName,layer)
+    dump_obj = function(obj,parentName,layer)
         if type(obj) ~= "table" then
             return count_elements(obj)
+        end
+
+        if PrintedCatch[obj] ~= nil then
+            return parentName
+        else
+            PrintedCatch[obj] = true
         end
 
         layer = layer + 1
@@ -82,8 +92,8 @@ function Debug.dumptree(obj,ObjName, width)
                 key_name = key_name.."\n"
             end
 
-            if k == parentObjName or k == "_G" or k == "package" then
-                table.insert(tokens, make_indent(layer, true) .. "{}")
+            if k == "PrintedCatch" then
+                table.insert(tokens, make_indent(layer, true) .. "table is filter")
                 --logWarn(k)
             else
                 table.insert(tokens, make_indent(layer, cur_count == max_count)
@@ -107,5 +117,8 @@ function Debug.dumptree(obj,ObjName, width)
     end
 
     width = width or 2
-    return "root-->"..tostring(obj).."\n"..dump_obj(obj,ObjName, 0)
+    PrintedCatch = {}
+    local str = dump_obj(obj,ObjName,0)
+    PrintedCatch = nil
+    return "root-->"..tostring(obj).."\n"..str
 end
